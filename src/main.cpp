@@ -6,6 +6,7 @@
 #include <vector>
 #include "Eigen-3.3/Eigen/Core"
 #include "Eigen-3.3/Eigen/QR"
+#include "Eigen/LU"
 #include "MPC.h"
 #include "json.hpp"
 
@@ -77,7 +78,7 @@ int main() {
     // The 4 signifies a websocket message
     // The 2 signifies a websocket event
     string sdata = string(data).substr(0, length);
-    cout << sdata << endl;
+    // cout << sdata << endl;
     if (sdata.size() > 2 && sdata[0] == '4' && sdata[1] == '2') {
       string s = hasData(sdata);
       if (s != "") {
@@ -92,44 +93,78 @@ int main() {
           double psi = j[1]["psi"];
           double v = j[1]["speed"];
 
-          /*
-          * TODO: Calculate steering angle and throttle using MPC.
-          *
-          * Both are in between [-1, 1].
-          *
-          */
-          double steer_value;
-          double throttle_value;
+          v *= 0.44704;
+
+          vector<double> c_ptsx;
+          vector<double> c_ptsy;
+
+          if(ptsx.size() == ptsy.size() && ptsx.size()!=0){
+            for (unsigned int i = 0; i < ptsx.size(); i++){
+              Eigen::VectorXd sr(3);
+              sr << ptsx[i], ptsy[i], 1;
+
+              Eigen::MatrixXd T_car2glob(3,3);
+              T_car2glob << cos(psi), -sin(psi), px,
+                            sin(psi), cos(psi),  py,
+                            0,        0,         1;
+
+              Eigen::VectorXd dst(3);
+              dst = T_car2glob.inverse() * sr;
+
+              c_ptsx.push_back(dst[0]);
+              c_ptsy.push_back(dst[1]);
+            }
+          } else {
+            std::cout << "incompatible sizes" << std::endl;
+          }
+
+          Eigen::Map<Eigen::VectorXd> vecX(&c_ptsx[0], ptsx.size());
+          Eigen::Map<Eigen::VectorXd> vecY(&c_ptsy[0], ptsy.size());
+
+          int order = 3;
+          Eigen::VectorXd coef = polyfit(vecX, vecY, order);
+
+
+          double cte = polyeval(coef,0);
+          double epsi = - atan(coef[1]);
+
+          Eigen::VectorXd state(mpc.state_elems);
+          state << 0.0, 0.0, 0.0, v, cte, epsi;
+
+          vector<vector<double>> all_vars;
+          vector<double> result = mpc.Solve(state, coef, all_vars);
+
+          double steer_value    = -result[0] / deg2rad(25.0);
+          double throttle_value = result[1];
 
           json msgJson;
-          // NOTE: Remember to divide by deg2rad(25) before you send the steering value back.
-          // Otherwise the values will be in between [-deg2rad(25), deg2rad(25] instead of [-1, 1].
+
           msgJson["steering_angle"] = steer_value;
           msgJson["throttle"] = throttle_value;
 
           //Display the MPC predicted trajectory 
-          vector<double> mpc_x_vals;
-          vector<double> mpc_y_vals;
-
-          //.. add (x,y) points to list here, points are in reference to the vehicle's coordinate system
-          // the points in the simulator are connected by a Green line
-
-          msgJson["mpc_x"] = mpc_x_vals;
-          msgJson["mpc_y"] = mpc_y_vals;
+          msgJson["mpc_x"] = all_vars[0];
+          msgJson["mpc_y"] = all_vars[1];
 
           //Display the waypoints/reference line
           vector<double> next_x_vals;
           vector<double> next_y_vals;
 
-          //.. add (x,y) points to list here, points are in reference to the vehicle's coordinate system
-          // the points in the simulator are connected by a Yellow line
+          int i = 0;
+          int num = 40;
+          for (double x_wp = c_ptsx.front();
+               i < num; x_wp += (c_ptsx.back() - c_ptsx.front()) / num) {
+            i++;
+            next_x_vals.push_back(x_wp);
+            next_y_vals.push_back(polyeval(coef, x_wp));
+          }
 
           msgJson["next_x"] = next_x_vals;
           msgJson["next_y"] = next_y_vals;
 
 
           auto msg = "42[\"steer\"," + msgJson.dump() + "]";
-          std::cout << msg << std::endl;
+          // std::cout << msg << std::endl;
           // Latency
           // The purpose is to mimic real driving conditions where
           // the car does actuate the commands instantly.
