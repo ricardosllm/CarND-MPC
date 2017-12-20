@@ -8,6 +8,10 @@ using namespace std;
 
 class MPC {
  public:
+  size_t N  = 25;
+  double dt = 0.05;
+
+  const double Lf = 2.67;
 
   int state_elems    = 6;
   int actuator_elems = 2;

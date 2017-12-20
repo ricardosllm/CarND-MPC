@@ -5,8 +5,6 @@
 
 using CppAD::AD;
 
-size_t N  = 25;
-double dt = 0.05;
 
 // This value assumes the model presented in the classroom is used.
 //
@@ -18,7 +16,6 @@ double dt = 0.05;
 // presented in the classroom matched the previous radius.
 //
 // This is the length from front to CoG that has a similar radius.
-const double Lf = 2.67;
 double ref_v = 80.0 * 0.44704;
 
 size_t x_start     = 0;

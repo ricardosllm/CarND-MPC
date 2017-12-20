@@ -7,6 +7,8 @@
 #include "Eigen-3.3/Eigen/Core"
 #include "Eigen-3.3/Eigen/QR"
 #include "Eigen/LU"
+#include <cppad/cppad.hpp>
+#include <cppad/ipopt/solve.hpp>
 #include "MPC.h"
 #include "json.hpp"
 
@@ -20,7 +22,8 @@ double rad2deg(double x) { return x * 180 / pi(); }
 
 // Calculate future state to accomodate latency
 vector<double> FutureState(double x, double y,   double psi,
-                           double v, double cte, double epsi);
+                           double v, double cte, double epsi,
+                           double delta, MPC mpc);
 
 void CoordinateFransform(const std::vector<double> &pg_x,
                          const std::vector<double> &pg_y,
@@ -101,6 +104,7 @@ int main() {
           double py = j[1]["y"];
           double psi = j[1]["psi"];
           double v = j[1]["speed"];
+          double delta = j[1]["steering_angle"];
 
           v *= 0.44704;
 
@@ -121,7 +125,7 @@ int main() {
 
           Eigen::VectorXd state(mpc.state_elems);
 
-          vector<double> fstate = FutureState(px, py, psi, v, cte, epsi);
+          vector<double> fstate = FutureState(px, py, psi, v, cte, epsi, delta, mpc);
 
           state << fstate[0], fstate[1], fstate[2], fstate[3], fstate[4], fstate[5];
 
@@ -214,10 +218,16 @@ int main() {
 }
 
 std::vector<double> FutureState(double x, double y,   double psi,
-                                double v, double cte, double epsi) {
-  // vector<double> state = { 0.0, 0.0, 0.0, v, cte, epsi };
-  // TODO: implement
-  return { 0.0, 0.0, 0.0, v, cte, epsi };
+                                double v, double cte, double epsi,
+                                double delta, MPC mpc) {
+  double dt = mpc.dt;
+  double Lf = mpc.Lf;
+
+  double v_f = v + 1 * dt;
+  double cte_f = cte - y + (v * CppAD::sin(epsi) * dt);
+  double epsi_f = epsi + (v / Lf) * delta * dt;
+
+  return { 0.0, 0.0, 0.0, v_f, cte_f, epsi_f };
 }
 
 void CoordinateFransform(const std::vector<double> &ptsx,
