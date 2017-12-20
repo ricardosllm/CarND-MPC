@@ -21,9 +21,9 @@ double deg2rad(double x) { return x * pi() / 180; }
 double rad2deg(double x) { return x * 180 / pi(); }
 
 // Calculate future state to accomodate latency
-vector<double> FutureState(double x, double y,   double psi,
-                           double v, double cte, double epsi,
-                           double delta, MPC mpc);
+vector<double> FutureState(double x, double y,
+                           double psi, double v, double cte,
+                           double epsi, double delta, double throttle);
 
 void CoordinateFransform(const std::vector<double> &pg_x,
                          const std::vector<double> &pg_y,
@@ -105,6 +105,7 @@ int main() {
           double psi = j[1]["psi"];
           double v = j[1]["speed"];
           double delta = j[1]["steering_angle"];
+          double throttle = j[1]["throttle"];
 
           v *= 0.44704;
 
@@ -125,7 +126,16 @@ int main() {
 
           Eigen::VectorXd state(mpc.state_elems);
 
-          vector<double> fstate = FutureState(px, py, psi, v, cte, epsi, delta, mpc);
+          std::cout << "px " << px << endl;
+          std::cout << "py " << py << endl;
+          std::cout << "c_ptsx " << endl;
+          for (auto i = c_ptsx.begin(); i != c_ptsx.end(); ++i)
+            std::cout << *i << ' ';
+          std::cout << "c_ptsy " << endl;
+          for (auto i = c_ptsy.begin(); i != c_ptsy.end(); ++i)
+            std::cout << *i << ' ';
+          vector<double> fstate = FutureState(c_ptsx[0], c_ptsx[0], psi, v,
+                                              cte, epsi, delta, throttle);
 
           state << fstate[0], fstate[1], fstate[2], fstate[3], fstate[4], fstate[5];
 
@@ -219,15 +229,24 @@ int main() {
 
 std::vector<double> FutureState(double x, double y,   double psi,
                                 double v, double cte, double epsi,
-                                double delta, MPC mpc) {
-  double dt = mpc.dt;
-  double Lf = mpc.Lf;
+                                double delta, double throttle) {
+  double dt = 0.05;
+  const double Lf = 2.67;
 
-  double v_f = v + 1 * dt;
-  double cte_f = cte - y + (v * CppAD::sin(epsi) * dt);
-  double epsi_f = epsi + (v / Lf) * delta * dt;
+  double x_f    = x + v * CppAD::cos(psi) * dt;
+  double y_f    = y + v * CppAD::sin(psi) * dt;
+  double psi_f  = psi + (v / Lf) * delta * dt;
+  double v_f    = v + -throttle * dt;
+  double cte_f  = cte - y + (v * CppAD::sin(epsi) * dt);
+  double epsi_f = epsi + (v / Lf) * -delta * dt;
 
-  return { 0.0, 0.0, 0.0, v_f, cte_f, epsi_f };
+  // vector<double> future_state = { x_f, y_f, psi_f, v_f, cte_f, epsi_f };
+  vector<double> future_state = { 0.0, 0.0, 0.0, v_f, cte_f, epsi_f };
+
+  cout << future_state[0] << endl;
+  for (auto i = future_state.begin(); i != future_state.end(); ++i)
+    std::cout << *i << ' ';
+  return future_state;
 }
 
 void CoordinateFransform(const std::vector<double> &ptsx,
@@ -241,8 +260,8 @@ void CoordinateFransform(const std::vector<double> &ptsx,
 
       Eigen::MatrixXd T_car2glob(3,3);
       T_car2glob << cos(psi), -sin(psi), px,
-        sin(psi), cos(psi),  py,
-        0,        0,         1;
+                    sin(psi), cos(psi),  py,
+                    0,        0,         1;
 
       Eigen::VectorXd dst(3);
       dst = T_car2glob.inverse() * sr;

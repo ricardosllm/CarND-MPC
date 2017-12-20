@@ -5,7 +5,8 @@
 
 using CppAD::AD;
 
-
+size_t N  = 25;
+double dt = 0.05;
 // This value assumes the model presented in the classroom is used.
 //
 // It was obtained by measuring the radius formed by running the vehicle in the
@@ -26,6 +27,8 @@ size_t cte_start   = v_start + N;
 size_t epsi_start  = cte_start + N;
 size_t delta_start = epsi_start + N;
 size_t a_start     = delta_start + N - 1;
+
+const double Lf = 2.67;
 
 class FG_eval {
  public:
