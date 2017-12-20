@@ -21,11 +21,11 @@ double deg2rad(double x) { return x * pi() / 180; }
 double rad2deg(double x) { return x * 180 / pi(); }
 
 // Calculate future state to accomodate latency
-vector<double> FutureState(double x, double y,
-                           double psi, double v, double cte,
-                           double epsi, double delta, double throttle);
+Eigen::VectorXd FutureState(double x, double y, double psi,
+                            double v, double cte, double epsi,
+                            double delta, double throttle);
 
-void CoordinateFransform(const std::vector<double> &pg_x,
+void CoordinateTransform(const std::vector<double> &pg_x,
                          const std::vector<double> &pg_y,
                          double car_x, double car_y, double psi,
                          std::vector<double> &pc_x, std::vector<double> &pc_y);
@@ -107,12 +107,16 @@ int main() {
           double delta = j[1]["steering_angle"];
           double throttle = j[1]["throttle"];
 
+          // Covert to Unity conventions
+          delta *= -1.0;
+
+          // Convert to m/s
           v *= 0.44704;
 
           vector<double> c_ptsx;
           vector<double> c_ptsy;
 
-          CoordinateFransform(ptsx, ptsy, px, py, psi, c_ptsx, c_ptsy);
+          CoordinateTransform(ptsx, ptsy, px, py, psi, c_ptsx, c_ptsy);
 
           Eigen::Map<Eigen::VectorXd> vecX(&c_ptsx[0], ptsx.size());
           Eigen::Map<Eigen::VectorXd> vecY(&c_ptsy[0], ptsy.size());
@@ -120,24 +124,15 @@ int main() {
           int order = 3;
           Eigen::VectorXd coef = polyfit(vecX, vecY, order);
 
-
           double cte = polyeval(coef,0);
           double epsi = - atan(coef[1]);
 
           Eigen::VectorXd state(mpc.state_elems);
 
-          std::cout << "px " << px << endl;
-          std::cout << "py " << py << endl;
-          std::cout << "c_ptsx " << endl;
-          for (auto i = c_ptsx.begin(); i != c_ptsx.end(); ++i)
-            std::cout << *i << ' ';
-          std::cout << "c_ptsy " << endl;
-          for (auto i = c_ptsy.begin(); i != c_ptsy.end(); ++i)
-            std::cout << *i << ' ';
-          vector<double> fstate = FutureState(c_ptsx[0], c_ptsx[0], psi, v,
-                                              cte, epsi, delta, throttle);
+          Eigen::VectorXd future_state = FutureState(px, py, psi, v, cte,
+                                                     epsi, delta, throttle);
 
-          state << fstate[0], fstate[1], fstate[2], fstate[3], fstate[4], fstate[5];
+          state << future_state;
 
           vector<vector<double>> all_vars;
           vector<double> result = mpc.Solve(state, coef, all_vars);
@@ -227,33 +222,30 @@ int main() {
   h.run();
 }
 
-std::vector<double> FutureState(double x, double y,   double psi,
-                                double v, double cte, double epsi,
-                                double delta, double throttle) {
+Eigen::VectorXd FutureState(double x, double y,   double psi,
+                            double v, double cte, double epsi,
+                            double delta, double throttle) {
   double dt = 0.05;
   const double Lf = 2.67;
 
-  double x_f    = x + v * CppAD::cos(psi) * dt;
-  double y_f    = y + v * CppAD::sin(psi) * dt;
-  double psi_f  = psi + (v / Lf) * delta * dt;
-  double v_f    = v + -throttle * dt;
-  double cte_f  = cte - y + (v * CppAD::sin(epsi) * dt);
-  double epsi_f = epsi + (v / Lf) * -delta * dt;
+  double x_f    = v * CppAD::cos(psi) * dt;
+  double y_f    = v * CppAD::sin(psi) * dt;
+  double psi_f  = v / Lf * delta * dt;
+  double v_f    = v + throttle * dt;
+  double cte_f  = cte + (v * CppAD::sin(epsi) * dt);
+  double epsi_f = epsi + (v / Lf) * delta * dt;
 
-  // vector<double> future_state = { x_f, y_f, psi_f, v_f, cte_f, epsi_f };
-  vector<double> future_state = { 0.0, 0.0, 0.0, v_f, cte_f, epsi_f };
+  Eigen::VectorXd future_state(6);
+  future_state << x_f, y_f, psi_f, v_f, cte_f, epsi_f;
 
-  cout << future_state[0] << endl;
-  for (auto i = future_state.begin(); i != future_state.end(); ++i)
-    std::cout << *i << ' ';
   return future_state;
 }
 
-void CoordinateFransform(const std::vector<double> &ptsx,
+void CoordinateTransform(const std::vector<double> &ptsx,
                          const std::vector<double> &ptsy,
                          double px, double py, double psi,
                          std::vector<double> &c_ptsx, std::vector<double> &c_ptsy){
-  if(ptsx.size() == ptsy.size() && ptsx.size()!=0){
+  if(ptsx.size() == ptsy.size() && ptsx.size() !=0) {
     for (unsigned int i = 0; i < ptsx.size(); i++){
       Eigen::VectorXd sr(3);
       sr << ptsx[i], ptsy[i], 1;

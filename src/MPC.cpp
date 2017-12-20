@@ -136,12 +136,12 @@ vector<double> MPC::Solve(Eigen::VectorXd state,
   size_t i;
   typedef CPPAD_TESTVECTOR(double) Dvector;
 
-  double x    = state[0];
-  double y    = state[1];
-  double psi  = state[2];
-  double v    = state[3];
-  double cte  = state[4];
-  double epsi = state[5];
+  const double x    = state[0];
+  const double y    = state[1];
+  const double psi  = state[2];
+  const double v    = state[3];
+  const double cte  = state[4];
+  const double epsi = state[5];
 
   size_t n_vars        = state_elems * N + actuator_elems * (N - 1);
   size_t n_constraints = state_elems * N;
@@ -156,13 +156,6 @@ vector<double> MPC::Solve(Eigen::VectorXd state,
   Dvector vars_lowerbound(n_vars);
   Dvector vars_upperbound(n_vars);
   // Set lower and upper limits for variables.
-
-  vars[x_start]    = x;
-  vars[y_start]    = y;
-  vars[psi_start]  = psi;
-  vars[v_start]    = v;
-  vars[cte_start]  = cte;
-  vars[epsi_start] = epsi;
 
   for (i = 0; i < delta_start; i++) {
     vars_lowerbound[i] = std::numeric_limits<double>::lowest();
