@@ -65,6 +65,8 @@ double dt = 0.05;
 
 #### Polynomial Fitting and MPC Preprocessing
 
+![alt text](results/equation.png "Result")
+
 I start by converting all waypoints to local car coordinates (`x = 0, y = 0 & psi = 0`) making sure the `cte` only depends on the `y` direction, thus simplifying calculations.
 
 I then fitted a 3rd order polynomial to the waypoints, calculated the derivative which, due to the simplifications mentioned above,
