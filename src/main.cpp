@@ -18,6 +18,15 @@ constexpr double pi() { return M_PI; }
 double deg2rad(double x) { return x * pi() / 180; }
 double rad2deg(double x) { return x * 180 / pi(); }
 
+// Calculate future state to accomodate latency
+vector<double> FutureState(double x, double y,   double psi,
+                           double v, double cte, double epsi);
+
+void CoordinateFransform(const std::vector<double> &pg_x,
+                         const std::vector<double> &pg_y,
+                         double car_x, double car_y, double psi,
+                         std::vector<double> &pc_x, std::vector<double> &pc_y);
+
 // Checks if the SocketIO event has JSON data.
 // If there is data the JSON object in string format will be returned,
 // else the empty string "" will be returned.
@@ -98,25 +107,7 @@ int main() {
           vector<double> c_ptsx;
           vector<double> c_ptsy;
 
-          if(ptsx.size() == ptsy.size() && ptsx.size()!=0){
-            for (unsigned int i = 0; i < ptsx.size(); i++){
-              Eigen::VectorXd sr(3);
-              sr << ptsx[i], ptsy[i], 1;
-
-              Eigen::MatrixXd T_car2glob(3,3);
-              T_car2glob << cos(psi), -sin(psi), px,
-                            sin(psi), cos(psi),  py,
-                            0,        0,         1;
-
-              Eigen::VectorXd dst(3);
-              dst = T_car2glob.inverse() * sr;
-
-              c_ptsx.push_back(dst[0]);
-              c_ptsy.push_back(dst[1]);
-            }
-          } else {
-            std::cout << "incompatible sizes" << std::endl;
-          }
+          CoordinateFransform(ptsx, ptsy, px, py, psi, c_ptsx, c_ptsy);
 
           Eigen::Map<Eigen::VectorXd> vecX(&c_ptsx[0], ptsx.size());
           Eigen::Map<Eigen::VectorXd> vecY(&c_ptsy[0], ptsy.size());
@@ -129,7 +120,10 @@ int main() {
           double epsi = - atan(coef[1]);
 
           Eigen::VectorXd state(mpc.state_elems);
-          state << 0.0, 0.0, 0.0, v, cte, epsi;
+
+          vector<double> fstate = FutureState(px, py, psi, v, cte, epsi);
+
+          state << fstate[0], fstate[1], fstate[2], fstate[3], fstate[4], fstate[5];
 
           vector<vector<double>> all_vars;
           vector<double> result = mpc.Solve(state, coef, all_vars);
@@ -217,4 +211,36 @@ int main() {
     return -1;
   }
   h.run();
+}
+
+std::vector<double> FutureState(double x, double y,   double psi,
+                                double v, double cte, double epsi) {
+  // vector<double> state = { 0.0, 0.0, 0.0, v, cte, epsi };
+  // TODO: implement
+  return { 0.0, 0.0, 0.0, v, cte, epsi };
+}
+
+void CoordinateFransform(const std::vector<double> &ptsx,
+                         const std::vector<double> &ptsy,
+                         double px, double py, double psi,
+                         std::vector<double> &c_ptsx, std::vector<double> &c_ptsy){
+  if(ptsx.size() == ptsy.size() && ptsx.size()!=0){
+    for (unsigned int i = 0; i < ptsx.size(); i++){
+      Eigen::VectorXd sr(3);
+      sr << ptsx[i], ptsy[i], 1;
+
+      Eigen::MatrixXd T_car2glob(3,3);
+      T_car2glob << cos(psi), -sin(psi), px,
+        sin(psi), cos(psi),  py,
+        0,        0,         1;
+
+      Eigen::VectorXd dst(3);
+      dst = T_car2glob.inverse() * sr;
+
+      c_ptsx.push_back(dst[0]);
+      c_ptsy.push_back(dst[1]);
+    }
+  } else {
+    std::cout << "incompatible sizes" << std::endl;
+  }
 }
