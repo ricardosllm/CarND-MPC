@@ -72,9 +72,24 @@ is only dependent on the 2nd coefficient of the polynomial.
 
 #### Model Predictive Control with Latency
 
-I did not optimize for latency as the controller is robust enough against it and should perform as expected. 
+I implement latency compensation by predicting the vehicle state into the future by the latency time before passing it to the solver.
+```c++
+vector<double> fstate = FutureState(px, py, psi, v, cte, epsi, delta, mpc);
 
-I've decided this way due also due to the fact that in a real world scenario the latency won't be constant or easy to measure accurately.
+state << fstate[0], fstate[1], fstate[2], fstate[3], fstate[4], fstate[5];
+
+vector<vector<double>> all_vars;
+vector<double> result = mpc.Solve(state, coef, all_vars);
+
+```
+
+```c++
+double v_f    = v + 1 * dt;
+double cte_f  = cte - y + (v * CppAD::sin(epsi) * dt);
+double epsi_f = epsi + (v / Lf) * delta * dt;
+
+```
+Note that the yaw angle psi_t and the position, x and y, are zero after I've converted the waypoints into local car coordinates
 
 ### Results
 
